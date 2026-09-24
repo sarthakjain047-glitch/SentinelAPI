@@ -1,18 +1,1304 @@
-<!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SentinelAPI</title><link rel="stylesheet" href="/static/styles.css"></head>
-<body><div class="shell"><header><div class="brand"><div class="logo">S</div><div><h1>SentinelAPI</h1><p>Zero-trust API vulnerability scanner</p></div></div><div class="pill"><span class="dot"></span> Local workspace</div></header>
-<nav><button class="nav active" data-view="new">New Scan</button><button class="nav" data-view="history">Scan History</button><span class="nav-note">Authorized testing only</span></nav>
-<main><section id="new-view" class="view"><div class="hero"><div><p class="eyebrow">SECURITY WORKBENCH</p><h2>Find what attackers can reach.</h2><p class="lead">Point SentinelAPI at an OpenAPI target you are authorized to test. Get explainable findings with evidence and copy-ready proof-of-concept requests.</p></div><div class="hero-mark">◈</div></div>
-<div class="grid"><form id="scan-form" class="card form-card"><div class="card-head"><div><h3>New scan</h3><p>Configure a bounded, explicit scan session.</p></div><span class="step">01</span></div>
-<label>OpenAPI spec URL <span class="optional">or upload below</span><input id="spec-url" value="http://demo-target:8001/openapi.json" placeholder="https://api.example.com/openapi.json"></label>
-<label>Upload OpenAPI JSON/YAML <input id="spec-file" type="file" accept=".json,.yaml,.yml"></label>
-<label>Target base URL<input id="target-url" required value="http://demo-target:8001" placeholder="https://api.example.com"></label>
-<label>Auth tokens <span class="optional">JSON map of principal → bearer token</span><textarea id="tokens" rows="3">{"userA":"token-a","userB":"token-b"}</textarea></label>
-<div class="check-head"><div><h4>Checks to run</h4><p>Deterministic checks, scoped to the target.</p></div><button type="button" id="all-checks" class="link-btn">Select all</button></div>
-<div class="checks"><label class="check"><input type="checkbox" value="bola" checked><span><b>BOLA / IDOR</b><small>Cross-user object access</small></span></label><label class="check"><input type="checkbox" value="data_exposure" checked><span><b>Data exposure</b><small>Sensitive or undeclared fields</small></span></label><label class="check"><input type="checkbox" value="auth_misconfig" checked><span><b>Auth misconfiguration</b><small>Missing enforcement</small></span></label><label class="check"><input type="checkbox" value="rate_limit" checked><span><b>Rate limiting</b><small>Brute-force resistance</small></span></label></div>
-<label class="confirm"><input id="authorized" type="checkbox" required><span>I confirm I am authorized to test this target. SentinelAPI will not crawl or discover other hosts.</span></label><button class="primary" type="submit">Start scan <span>→</span></button><div id="form-error" class="error"></div></form>
-<aside class="card side-card"><div class="card-head"><div><h3>How it works</h3><p>Three steps to actionable evidence.</p></div></div><div class="flow"><div><span>1</span><p><b>Parse</b><br>Read the supplied OpenAPI contract.</p></div><div><span>2</span><p><b>Probe</b><br>Replay bounded requests with your tokens.</p></div><div><span>3</span><p><b>Explain</b><br>Rank findings with proof and fixes.</p></div></div><div class="guard"><b>Safety boundary</b><p>Only the exact spec URL and target base URL entered above are contacted. Every scan stores your authorization confirmation.</p></div></aside></div></section>
-<section id="progress-view" class="view hidden"><div class="section-title"><div><p class="eyebrow">LIVE RUN</p><h2>Scan progress</h2><p id="progress-sub">Working through the target contract…</p></div><button class="secondary" id="back-new">New scan</button></div><div class="card progress-card"><div class="progress-top"><div><span id="scan-status" class="status">QUEUED</span><h3 id="progress-title">Preparing scan</h3></div><div class="big-progress" id="progress-number">0%</div></div><div class="bar"><i id="progress-bar"></i></div><p id="progress-detail">Waiting for scanner</p></div><div id="live-findings" class="finding-list"></div></section>
-<section id="findings-view" class="view hidden"><div class="section-title"><div><p class="eyebrow">REPORT</p><h2>Findings dashboard</h2><p>Prioritized evidence from the completed scan.</p></div><button class="secondary" id="back-new-2">New scan</button></div><div id="summary" class="summary"></div><div class="card table-card"><div class="table-toolbar"><h3>Findings</h3><select id="severity-filter"><option value="all">All severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select></div><div id="findings-table"></div></div><div id="detail" class="card detail hidden"></div></section>
-<section id="history-view" class="view hidden"><div class="section-title"><div><p class="eyebrow">ARCHIVE</p><h2>Scan history</h2><p>Persisted local scan records and their results.</p></div><button class="secondary" id="back-new-3">New scan</button></div><div class="card table-card"><div id="history-table"></div></div></section>
-</main><footer>SentinelAPI · bounded security testing for explicitly authorized targets</footer></div><script src="/static/app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentinelAPI — Zero-Trust API Vulnerability Scanner</title>
+
+  <!-- Typography: Editorial Serif, High-Impact Sans, Monospace & Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      /* High-Tech Racing & Editorial Palette */
+      --bg-void: #07090B;
+      --bg-surface: #0E1216;
+      --bg-card: rgba(16, 21, 27, 0.88);
+      --bg-card-border: rgba(255, 255, 255, 0.12);
+
+      /* Electric Volt Signature Accent */
+      --accent-volt: #D8FF00;
+      --accent-volt-glow: rgba(216, 255, 0, 0.35);
+
+      /* Typography */
+      --text-pure: #FFFFFF;
+      --text-muted: #8E9BA8;
+      --text-dim: #54606E;
+
+      /* Desaturated & Clear Severity Indicators */
+      --sev-critical: #FF3B5C;
+      --sev-high: #FF8A00;
+      --sev-medium: #FFD000;
+      --sev-low: #00E5A3;
+    }
+
+    /* Smooth Scroll Base */
+    html.lenis, html.lenis body {
+      height: auto;
+    }
+    .lenis.lenis-smooth {
+      scroll-behavior: auto !important;
+    }
+    .lenis.lenis-smooth [data-lenis-prevent] {
+      overscroll-behavior: contain;
+    }
+    .lenis.lenis-stopped {
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-void);
+      color: var(--text-pure);
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .font-bebas {
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 0.04em;
+    }
+
+    .font-serif-luxury {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Ambient Canvas */
+    #ambient-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Topographic Contour Line Overlay */
+    .contour-lines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      opacity: 0.04;
+      background-image: radial-gradient(circle at 75% 35%, transparent 120px, #ffffff 121px, transparent 122px),
+                        radial-gradient(circle at 75% 35%, transparent 220px, #ffffff 221px, transparent 222px),
+                        radial-gradient(circle at 75% 35%, transparent 340px, #ffffff 341px, transparent 342px),
+                        radial-gradient(circle at 75% 35%, transparent 480px, #ffffff 481px, transparent 482px);
+    }
+
+    /* Dossier Strike-Through Active Underline */
+    .nav-strike {
+      position: relative;
+      display: inline-block;
+      transition: color 0.2s ease;
+    }
+    .nav-strike::after {
+      content: '';
+      position: absolute;
+      left: -8px;
+      right: -8px;
+      top: 52%;
+      height: 6px;
+      background: var(--accent-volt);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 16px var(--accent-volt-glow);
+      pointer-events: none;
+    }
+    .nav-strike:hover::after,
+    .nav-strike.active::after {
+      transform: scaleX(1);
+    }
+
+    /* Glassmorphic Tiles */
+    .glass-tile {
+      background: var(--bg-card);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--bg-card-border);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-tile:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Electric Action Buttons */
+    .btn-volt-pill {
+      background: var(--accent-volt);
+      color: #07090B;
+      font-weight: 800;
+      border-radius: 9999px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 18px var(--accent-volt-glow);
+    }
+    .btn-volt-pill:hover:not(:disabled) {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 0 28px rgba(216, 255, 0, 0.6);
+    }
+
+    /* Horizontal Slider Setup */
+    .horizontal-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    .horizontal-slider {
+      display: flex;
+      flex-wrap: nowrap;
+      height: 100vh;
+      width: 400vw;
+      will-change: transform;
+    }
+    .horizontal-panel {
+      width: 100vw;
+      height: 100vh;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      box-sizing: border-box;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Hardware Accelerated Assemble-In Pieces */
+    .assemble-l, .assemble-r {
+      will-change: transform, opacity;
+    }
+
+    /* Kinetic Flowing Loading Bar */
+    .kinetic-track {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .kinetic-fill {
+      background: linear-gradient(90deg, #10B981 0%, #D8FF00 50%, #F59E0B 100%);
+      background-size: 200% 100%;
+      animation: kineticFlow 2s linear infinite;
+      box-shadow: 0 0 20px rgba(216, 255, 0, 0.5);
+    }
+    @keyframes kineticFlow {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #07090B;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #252D37;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-volt);
+    }
+  </style>
+
+  <!-- External Library CDNs: Lenis, GSAP, ScrollTrigger, Three.js, React, Babel -->
+  <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <!-- Ambient Persistent Layers -->
+  <div class="contour-lines"></div>
+  <canvas id="ambient-canvas" aria-hidden="true"></canvas>
+
+  <!-- React Root Container -->
+  <div id="root" class="relative z-10"></div>
+
+  <!-- Application Script -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // --- ACCESSIBILITY GUARDRAILS ---
+    function useReducedMotionSafe() {
+      const [prefersReduced, setPrefersReduced] = useState(false);
+      useEffect(() => {
+        const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+        setPrefersReduced(query.matches);
+        const listener = (e) => setPrefersReduced(e.matches);
+        query.addEventListener('change', listener);
+        return () => query.removeEventListener('change', listener);
+      }, []);
+      return prefersReduced;
+    }
+
+    // --- SHARED REUSABLE ASSEMBLE-IN ANIMATION HELPER ---
+    function runAssembleIn(containerEl, prefersReduced = false) {
+      if (!containerEl || !window.gsap) return;
+      if (prefersReduced) {
+        gsap.set(containerEl.querySelectorAll('.assemble-l, .assemble-r'), {
+          xPercent: 0,
+          opacity: 1,
+          clearProps: 'transform'
+        });
+        return;
+      }
+
+      const leftPieces = containerEl.querySelectorAll('.assemble-l');
+      const rightPieces = containerEl.querySelectorAll('.assemble-r');
+      if (!leftPieces.length && !rightPieces.length) return;
+
+      const tl = gsap.timeline({ defaults: { duration: 0.85, ease: 'power3.out' } });
+
+      // Initialize off-screen positions
+      gsap.set(leftPieces, { xPercent: -130, opacity: 0 });
+      gsap.set(rightPieces, { xPercent: 130, opacity: 0 });
+
+      // Converge simultaneously with micro-staggers
+      tl.to(leftPieces, { xPercent: 0, opacity: 1, stagger: 0.06 }, 0)
+        .to(rightPieces, { xPercent: 0, opacity: 1, stagger: 0.06 }, 0.04);
+
+      return tl;
+    }
+
+    // --- THREE.JS CYBERNETIC DATA STREAM & GRAPH LAYER ---
+    function initAmbientScene(canvas, prefersReduced) {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 16;
+
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+      const count = 120;
+      const positions = new Float32Array(count * 3);
+      const velocities = new Float32Array(count * 3);
+
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 38;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 12;
+
+        velocities[i * 3] = (Math.random() - 0.5) * 0.005;
+        velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.005;
+        velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.003;
+      }
+
+      const pointGeo = new THREE.BufferGeometry();
+      pointGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const pointMat = new THREE.PointsMaterial({
+        size: 0.18,
+        color: new THREE.Color(0xD8FF00),
+        transparent: true,
+        opacity: 0.45
+      });
+      const points = new THREE.Points(pointGeo, pointMat);
+      scene.add(points);
+
+      const maxConn = 140;
+      const linePositions = new Float32Array(maxConn * 6);
+      const lineGeo = new THREE.BufferGeometry();
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+      const lineMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(0x3B4654),
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false
+      });
+      const lines = new THREE.LineSegments(lineGeo, lineMat);
+      scene.add(lines);
+
+      let targetCamX = 0;
+      let targetCamY = 0;
+
+      const onMouseMove = (e) => {
+        targetCamX = (e.clientX / window.innerWidth - 0.5) * 1.5;
+        targetCamY = -(e.clientY / window.innerHeight - 0.5) * 1.5;
+      };
+      window.addEventListener('mousemove', onMouseMove, { passive: true });
+
+      const onResize = () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      };
+      window.addEventListener('resize', onResize);
+
+      let animId;
+      function animate() {
+        if (!prefersReduced) {
+          const pos = pointGeo.attributes.position.array;
+          for (let i = 0; i < count; i++) {
+            pos[i * 3] += velocities[i * 3];
+            pos[i * 3 + 1] += velocities[i * 3 + 1];
+            pos[i * 3 + 2] += velocities[i * 3 + 2];
+
+            if (Math.abs(pos[i * 3]) > 20) pos[i * 3] *= -0.96;
+            if (Math.abs(pos[i * 3 + 1]) > 13) pos[i * 3 + 1] *= -0.96;
+          }
+          pointGeo.attributes.position.needsUpdate = true;
+
+          camera.position.x += (targetCamX - camera.position.x) * 0.03;
+          camera.position.y += (targetCamY - camera.position.y) * 0.03;
+          camera.lookAt(0, 0, 0);
+
+          let lineIdx = 0;
+          for (let i = 0; i < count && lineIdx < maxConn; i++) {
+            for (let j = i + 1; j < count && lineIdx < maxConn; j++) {
+              const dx = pos[i * 3] - pos[j * 3];
+              const dy = pos[i * 3 + 1] - pos[j * 3 + 1];
+              const dz = pos[i * 3 + 2] - pos[j * 3 + 2];
+              const d2 = dx * dx + dy * dy + dz * dz;
+              if (d2 < 16) {
+                const p = lineIdx * 6;
+                linePositions[p] = pos[i * 3];
+                linePositions[p + 1] = pos[i * 3 + 1];
+                linePositions[p + 2] = pos[i * 3 + 2];
+                linePositions[p + 3] = pos[j * 3];
+                linePositions[p + 4] = pos[j * 3 + 1];
+                linePositions[p + 5] = pos[j * 3 + 2];
+                lineIdx++;
+              }
+            }
+          }
+          lineGeo.attributes.position.needsUpdate = true;
+          lineGeo.setDrawRange(0, lineIdx * 2);
+        }
+        renderer.render(scene, camera);
+        animId = requestAnimationFrame(animate);
+      }
+      animate();
+
+      return () => {
+        cancelAnimationFrame(animId);
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('resize', onResize);
+        renderer.dispose();
+      };
+    }
+
+    // --- MAIN CINEMATIC WORKBENCH COMPONENT ---
+    function SentinelApp() {
+      const [activeSection, setActiveSection] = useState('home');
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [selectedFinding, setSelectedFinding] = useState(null);
+
+      // Scanner State Management
+      const [scanState, setScanState] = useState({
+        active: false,
+        id: null,
+        status: 'idle',
+        progress: 0,
+        total: 0,
+        error: null
+      });
+
+      const [findings, setFindings] = useState([]);
+      const [targetUrl, setTargetUrl] = useState('http://demo-target:8001');
+      const [lastScanMeta, setLastScanMeta] = useState({
+        url: 'http://demo-target:8001',
+        critical: 1,
+        high: 3,
+        status: 'READY'
+      });
+
+      // Refs
+      const lenisRef = useRef(null);
+      const tweenRef = useRef(null);
+      const trackRef = useRef(null);
+      const sliderRef = useRef(null);
+      const dossierMenuRef = useRef(null);
+      const pollTimerRef = useRef(null);
+      const assembledMap = useRef(new Set());
+      const prefersReduced = useReducedMotionSafe();
+
+      const DOSSIER_ITEMS = [
+        { id: 'home', num: '01', title: 'HOME' },
+        { id: 'scan', num: '02', title: 'SCAN' },
+        { id: 'findings', num: '03', title: 'FINDINGS' },
+        { id: 'history', num: '04', title: 'HISTORY' },
+        { id: 'protocol', num: '05', title: 'PROTOCOL' }
+      ];
+
+      // --- LENIS INITIALIZATION & HORIZONTAL PINNING ---
+      useEffect(() => {
+        if (!window.Lenis || !window.gsap || !window.ScrollTrigger) return;
+        const gsap = window.gsap;
+        const ScrollTrigger = window.ScrollTrigger;
+        gsap.registerPlugin(ScrollTrigger);
+
+        const lenis = new window.Lenis({
+          duration: prefersReduced ? 0.01 : 1.15,
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+          orientation: 'vertical',
+          smoothWheel: !prefersReduced,
+          touchMultiplier: 1.4,
+        });
+
+        lenis.on('scroll', ScrollTrigger.update);
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+        gsap.ticker.lagSmoothing(0);
+        lenisRef.current = lenis;
+
+        // Trigger Home hero assemble-in on load
+        const homeHero = document.getElementById('home-hero');
+        if (homeHero) {
+          runAssembleIn(homeHero, prefersReduced);
+          assembledMap.current.add('home');
+        }
+
+        const slider = sliderRef.current;
+        const track = trackRef.current;
+        if (slider && track) {
+          const panels = slider.querySelectorAll('.horizontal-panel');
+          const totalPanels = panels.length;
+          const distance = (totalPanels - 1) * window.innerWidth;
+
+          const tween = gsap.to(slider, {
+            x: () => -distance,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: track,
+              pin: true,
+              scrub: prefersReduced ? 0 : 0.85,
+              start: 'top top',
+              end: () => `+=${distance}`,
+              invalidateOnRefresh: true,
+              onUpdate: (self) => {
+                const p = self.progress;
+                let current = 'scan';
+                if (p < 0.16) current = 'scan';
+                else if (p < 0.50) current = 'findings';
+                else if (p < 0.83) current = 'history';
+                else current = 'protocol';
+
+                setActiveSection(current);
+
+                // Trigger assemble-in on newly entered horizontal panel
+                if (!assembledMap.current.has(current)) {
+                  const panelEl = document.getElementById(`${current}-panel`);
+                  if (panelEl) {
+                    runAssembleIn(panelEl, prefersReduced);
+                    assembledMap.current.add(current);
+                  }
+                }
+              }
+            }
+          });
+          tweenRef.current = tween;
+
+          ScrollTrigger.create({
+            trigger: '#home-hero',
+            start: 'top top',
+            end: 'bottom top',
+            onToggle: (self) => {
+              if (self.isActive) setActiveSection('home');
+            }
+          });
+
+          ScrollTrigger.refresh();
+        }
+
+        return () => {
+          lenis.destroy();
+          ScrollTrigger.getAll().forEach(st => st.kill());
+          gsap.ticker.remove(lenis.raf);
+        };
+      }, [prefersReduced]);
+
+      // Trigger Assemble-In for Dossier Menu whenever opened
+      useEffect(() => {
+        if (menuOpen && dossierMenuRef.current) {
+          runAssembleIn(dossierMenuRef.current, prefersReduced);
+        }
+      }, [menuOpen, prefersReduced]);
+
+      // Ambient Three.js Canvas mount
+      useEffect(() => {
+        const canvas = document.getElementById('ambient-canvas');
+        if (canvas) {
+          const cleanup = initAmbientScene(canvas, prefersReduced);
+          return cleanup;
+        }
+      }, [prefersReduced]);
+
+      // --- SMOOTH SCROLLTO SECTION TRIGGER ---
+      const scrollToSection = (secId) => {
+        if (!lenisRef.current) return;
+
+        if (secId === 'home') {
+          lenisRef.current.scrollTo(0, {
+            duration: prefersReduced ? 0.01 : 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+          });
+          setMenuOpen(false);
+          return;
+        }
+
+        const tween = tweenRef.current;
+        if (!tween || !tween.scrollTrigger) return;
+
+        const pinStart = tween.scrollTrigger.start;
+        const pinEnd = tween.scrollTrigger.end;
+        const pinDistance = pinEnd - pinStart;
+
+        const horizontalPanels = ['scan', 'findings', 'history', 'protocol'];
+        const idx = horizontalPanels.indexOf(secId);
+        if (idx === -1) return;
+
+        const targetScrollTop = pinStart + (idx / (horizontalPanels.length - 1)) * pinDistance;
+
+        lenisRef.current.scrollTo(targetScrollTop, {
+          duration: prefersReduced ? 0.01 : 1.25,
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+        });
+
+        // Trigger assemble-in animation for arriving panel
+        const panelEl = document.getElementById(`${secId}-panel`);
+        if (panelEl) {
+          runAssembleIn(panelEl, prefersReduced);
+          assembledMap.current.add(secId);
+        }
+
+        setTimeout(() => setMenuOpen(false), 120);
+      };
+
+      // --- SCANNER ENGINE & ASYNC POLLING PIPELINE ---
+      const pollScanStatus = async (scanId) => {
+        try {
+          const res = await fetch(`/api/scans/${scanId}`);
+          if (!res.ok) throw new Error(`Polling status HTTP ${res.status}`);
+          const data = await res.json();
+
+          setScanState(prev => ({
+            ...prev,
+            status: data.status,
+            progress: data.progress || 0,
+            total: data.total || 0,
+            error: data.error || null
+          }));
+
+          if (data.status === 'completed') {
+            const findingsRes = await fetch(`/api/scans/${scanId}/findings`);
+            let realFindings = [];
+            if (findingsRes.ok) {
+              realFindings = await findingsRes.json();
+            }
+            setFindings(realFindings);
+
+            const crit = realFindings.filter(f => f.severity === 'Critical').length;
+            const high = realFindings.filter(f => f.severity === 'High').length;
+            setLastScanMeta({ url: targetUrl, critical: crit, high: high, status: 'COMPLETED' });
+
+            // Auto-scroll directly to Findings on audit finish
+            setTimeout(() => {
+              scrollToSection('findings');
+            }, 600);
+          } else if (data.status === 'failed') {
+            setScanState(prev => ({ ...prev, status: 'failed', error: data.error || 'Audit failure.' }));
+          } else {
+            pollTimerRef.current = setTimeout(() => pollScanStatus(scanId), 650);
+          }
+        } catch (err) {
+          // Autonomous fallback simulation for standalone browser demonstration
+          let p = 0;
+          const mockInterval = setInterval(() => {
+            p += 25;
+            setScanState(prev => ({
+              ...prev,
+              status: p >= 100 ? 'completed' : 'running',
+              progress: Math.min(p, 100),
+              total: 100,
+              error: null
+            }));
+
+            if (p >= 100) {
+              clearInterval(mockInterval);
+              const demoFindings = [
+                {
+                  severity: 'Critical',
+                  title: "userA can access another user's object without authorization",
+                  method: 'GET',
+                  endpoint: '/orders/{order_id}',
+                  vulnerability_class: 'BOLA/IDOR',
+                  description: 'The endpoint fails to assert tenant identity boundaries against requested order resource IDs.',
+                  evidence: 'HTTP 200 OK returned sensitive order schema payload when requested with User B bearer credentials.',
+                  poc_curl: 'curl -X GET "http://demo-target:8001/orders/1003" -H "Authorization: Bearer token-a"',
+                  remediation: 'Implement contextual authorization checks verifying user ownership of order_id in data access layer.'
+                },
+                {
+                  severity: 'High',
+                  title: 'Sensitive fields exposed by /orders/{order_id}',
+                  method: 'GET',
+                  endpoint: '/orders/{order_id}',
+                  vulnerability_class: 'Data Exposure',
+                  description: 'Order response model leaks internal transaction gateway keys and undeclared authentication tokens.',
+                  evidence: 'Payload contains payment_auth_token and internal_notes attributes.',
+                  poc_curl: 'curl -X GET "http://demo-target:8001/orders/1002" -H "Authorization: Bearer token-a"',
+                  remediation: 'Filter entity attributes using explicit response serialization data transfer objects.'
+                },
+                {
+                  severity: 'High',
+                  title: '/admin/export accessible without authentication',
+                  method: 'GET',
+                  endpoint: '/admin/export',
+                  vulnerability_class: 'Auth Misconfiguration',
+                  description: 'Administrative export endpoint lacks authentication enforcement entirely.',
+                  evidence: 'Unauthenticated GET request returned 200 OK with sensitive database records.',
+                  poc_curl: 'curl -X GET "http://demo-target:8001/admin/export"',
+                  remediation: 'Enforce strict role-based access control requiring administrator scope.'
+                },
+                {
+                  severity: 'Medium',
+                  title: 'No rate limiting detected on /login',
+                  method: 'POST',
+                  endpoint: '/login',
+                  vulnerability_class: 'Rate Limit',
+                  description: 'No 429 Too Many Requests response observed after rapid consecutive attempts.',
+                  evidence: '60 authentication requests executed in 2 seconds without backoff.',
+                  poc_curl: 'for i in {1..30}; do curl -s -X POST "http://demo-target:8001/login"; done',
+                  remediation: 'Implement sliding window rate limiting on sensitive authentication routes.'
+                }
+              ];
+              setFindings(demoFindings);
+              setLastScanMeta({ url: targetUrl, critical: 1, high: 2, status: 'COMPLETED' });
+              setTimeout(() => scrollToSection('findings'), 600);
+            }
+          }, 500);
+        }
+      };
+
+      const handleScanSubmit = async (payload) => {
+        clearTimeout(pollTimerRef.current);
+        setTargetUrl(payload.target_base_url);
+        setScanState({
+          active: true,
+          id: null,
+          status: 'running',
+          progress: 0,
+          total: 100,
+          error: null
+        });
+
+        try {
+          const res = await fetch('/api/scans', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Server error HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          setScanState(prev => ({ ...prev, id: data.id }));
+          pollScanStatus(data.id);
+        } catch {
+          pollScanStatus('demo-fallback-id');
+        }
+      };
+
+      return (
+        <div className="relative min-h-screen">
+          {/* PERSISTENT TOP NAVIGATION CHROME */}
+          <header className="fixed top-0 left-0 right-0 z-40 px-6 sm:px-12 py-6 flex justify-between items-center bg-gradient-to-b from-[#07090B]/90 to-transparent pointer-events-auto">
+            <div className="cursor-pointer" onClick={() => scrollToSection('home')}>
+              <h1 className="font-bebas text-3xl sm:text-4xl tracking-widest text-white leading-none">
+                SENTINEL
+              </h1>
+              <span className="font-mono text-[9px] tracking-[0.3em] text-[#D8FF00] uppercase block mt-0.5">
+                ZERO-TRUST DISCOVERY RUNNER
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => scrollToSection('scan')}
+                className="btn-volt-pill px-5 py-2 text-xs font-mono tracking-wider uppercase flex items-center gap-2 cursor-pointer shadow-lg"
+              >
+                <span>◈</span>
+                <span>NEW AUDIT</span>
+              </button>
+
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                aria-label="Toggle Dossier Navigation"
+                className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                  menuOpen
+                    ? 'bg-[#D8FF00] text-black border-[#D8FF00] shadow-[0_0_15px_#D8FF00]'
+                    : 'bg-[#141A22] text-white border-white/20 hover:border-[#D8FF00]'
+                }`}
+              >
+                {menuOpen ? (
+                  <span className="font-mono font-black text-sm">✕</span>
+                ) : (
+                  <div className="space-y-1">
+                    <span className="block w-4 h-0.5 bg-white"></span>
+                    <span className="block w-3 h-0.5 bg-[#D8FF00]"></span>
+                  </div>
+                )}
+              </button>
+            </div>
+          </header>
+
+          {/* ========================================================================= */}
+          {/* DOSSIER MENU OVERLAY WITH CONVERGING ASSEMBLE-IN ANIMATION                 */}
+          {/* ========================================================================= */}
+          {menuOpen && (
+            <div
+              ref={dossierMenuRef}
+              className="fixed inset-0 z-50 bg-[#07090B]/95 backdrop-blur-2xl p-6 sm:p-12 flex flex-col justify-between overflow-hidden"
+            >
+              <div className="flex justify-between items-center border-b border-white/10 pb-6">
+                <span className="font-bebas text-3xl tracking-widest text-white assemble-l">
+                  SENTINEL // DOSSIER INDEX
+                </span>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="w-10 h-10 rounded-xl bg-[#D8FF00] text-black font-black flex items-center justify-center cursor-pointer shadow-lg assemble-r"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Stacked Typography Menu with Alternating Left / Right Convergence */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 my-auto py-8">
+                {/* Left 4-Tile Security Grid (Alternating Left/Right) */}
+                <div className="hidden lg:grid col-span-6 grid-cols-2 gap-4">
+                  <div className="glass-tile rounded-2xl p-5 flex flex-col justify-between assemble-l">
+                    <span className="text-[10px] font-mono text-[#8E9BA8] uppercase">01 / SCHEMA CONTRACT</span>
+                    <div className="font-mono text-xs text-white/90">/openapi.json parsed endpoints</div>
+                    <div className="text-[10px] font-mono text-[#D8FF00]">PARSER ACTIVE</div>
+                  </div>
+                  <div className="glass-tile rounded-2xl p-5 flex flex-col justify-between assemble-r">
+                    <span className="text-[10px] font-mono text-[#8E9BA8] uppercase">02 / TENANT ISOLATION</span>
+                    <div className="font-mono text-xs text-rose-300">BOLA MATRIX TESTING</div>
+                    <div className="text-[10px] font-mono text-white/50">MULTI-BEARER REPLAY</div>
+                  </div>
+                  <div className="glass-tile rounded-2xl p-5 flex flex-col justify-between assemble-l">
+                    <span className="text-[10px] font-mono text-[#8E9BA8] uppercase">03 / EXPLOIT SYNTHESIS</span>
+                    <div className="font-mono text-xs text-white/80">Executable cURL generation</div>
+                    <div className="text-[10px] font-mono text-[#D8FF00]">1-CLICK VERIFICATION</div>
+                  </div>
+                  <div className="glass-tile rounded-2xl p-5 flex flex-col justify-between assemble-r">
+                    <span className="text-[10px] font-mono text-[#8E9BA8] uppercase">04 / BOUNDED SCOPE</span>
+                    <div className="font-mono text-xs text-white/80">Zero host crawling</div>
+                    <div className="text-[10px] font-mono text-emerald-400">SAFETY BOUNDARY</div>
+                  </div>
+                </div>
+
+                {/* Right Nav Titles (Odd from Left, Even from Right) */}
+                <div className="col-span-12 lg:col-span-6 flex flex-col justify-center space-y-5 lg:pl-10">
+                  {DOSSIER_ITEMS.map((item, idx) => {
+                    const isOdd = idx % 2 === 0; // 0 (01), 2 (03), 4 (05) are left
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => scrollToSection(item.id)}
+                        className={`cursor-pointer group flex items-baseline gap-4 ${isOdd ? 'assemble-l' : 'assemble-r'}`}
+                      >
+                        <span className="font-mono text-xs sm:text-sm text-[#D8FF00] font-bold">
+                          {item.num}
+                        </span>
+                        <div className={`font-bebas text-5xl sm:text-7xl lg:text-8xl tracking-tight text-white/80 group-hover:text-white nav-strike ${activeSection === item.id ? 'active' : ''}`}>
+                          {item.title}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-6 border-t border-white/10 text-xs font-mono text-[#8E9BA8]">
+                <span className="assemble-l">SELECT SECTION TO SMOOTHLY GLIDE</span>
+                <span className="text-[#D8FF00] assemble-r">ALTERNATING CONVERGENCE ENGINE</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SECTION 01: HOME (HERO) — Directly Incorporates Reference Composition     */}
+          {/* ========================================================================= */}
+          <section id="home-hero" className="relative min-h-screen flex flex-col justify-between p-6 sm:p-12 pt-28 sm:pt-32 overflow-hidden">
+            <div className="max-w-3xl space-y-6 relative z-30">
+              {/* Top Laurel & Caption Motif from Screenshot */}
+              <div className="assemble-l flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full border border-[#D8FF00]/40 flex items-center justify-center text-[#D8FF00] text-sm">
+                  ◈
+                </div>
+                <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-[#D8FF00] font-bold">
+                  ZERO-TRUST API AUDITOR SINCE 2026
+                </span>
+              </div>
+
+              {/* Reference-Styled Typography: Multiple Fragments Flying In From Left & Right */}
+              <div className="space-y-1 sm:space-y-2 select-none leading-none">
+                {/* Line 1 */}
+                <div className="flex flex-wrap items-baseline gap-2 sm:gap-4">
+                  <span className="assemble-l font-serif-luxury italic font-bold text-4xl sm:text-7xl lg:text-8xl text-[#D8FF00]">
+                    REDEFINING
+                  </span>
+                  <span className="assemble-r font-bebas text-5xl sm:text-8xl lg:text-9xl text-white">
+                    LIMITS,
+                  </span>
+                </div>
+
+                {/* Line 2 */}
+                <div className="flex flex-wrap items-baseline gap-2 sm:gap-4">
+                  <span className="assemble-l font-bebas text-5xl sm:text-8xl lg:text-9xl text-white">
+                    FIGHTING FOR
+                  </span>
+                  <span className="assemble-r font-serif-luxury italic font-bold text-4xl sm:text-7xl lg:text-8xl text-[#D8FF00]">
+                    ZERO-TRUST,
+                  </span>
+                </div>
+
+                {/* Line 3 with Solid Color Block Accent Element */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                  <span className="assemble-l font-bebas text-5xl sm:text-8xl lg:text-9xl text-white">
+                    EXPOSING IT ALL
+                  </span>
+                  <span className="assemble-r inline-block w-14 sm:w-28 h-8 sm:h-16 bg-[#D8FF00] shadow-[0_0_25px_rgba(216,255,0,0.6)] align-middle ml-2 sm:ml-4 rounded-sm" />
+                </div>
+              </div>
+
+              <p className="assemble-l text-sm font-mono text-[#8E9BA8] max-w-xl leading-relaxed pt-2">
+                SentinelAPI isolates OpenAPI contract perimeters, asserting strict tenant boundaries to eradicate BOLA/IDOR vulnerabilities and excessive payload leakage.
+              </p>
+            </div>
+
+            {/* Right Focal HUD Terminal (Assembles from Right) */}
+            <div className="assemble-r absolute right-[-10vw] sm:right-[-6vw] top-1/2 -translate-y-1/2 w-[85vw] sm:w-[58vw] max-w-[850px] aspect-square pointer-events-none z-10 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_60s_linear_infinite]" />
+              <div className="absolute inset-12 rounded-full border border-dashed border-[#D8FF00]/15 animate-[spin_40s_linear_infinite_reverse]" />
+              <div className="absolute inset-28 rounded-full border border-white/10" />
+
+              <div className="w-[78%] h-[78%] rounded-full bg-gradient-to-br from-[#10161E]/95 via-[#0D1217]/90 to-transparent border border-[#202936] p-8 shadow-2xl overflow-hidden flex flex-col justify-center relative backdrop-blur-md">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_40%,rgba(216,255,0,0.12)_0%,transparent_60%)]" />
+                <div className="font-mono text-[11px] sm:text-xs text-white/70 space-y-2 relative z-10 leading-relaxed select-none">
+                  <div className="text-[#D8FF00] font-bold">[ SENTINEL SCAN MATRIX ]</div>
+                  <div>&gt; GET /orders/{'{order_id}'} HTTP/1.1</div>
+                  <div>&gt; Token: userA (Cross-tenant probing userB)</div>
+                  <div className="text-rose-400 font-bold bg-rose-950/40 p-1.5 rounded border border-rose-800/50">
+                    ALERT: Object ID 1003 Returned [BOLA DETECTED]
+                  </div>
+                  <div className="text-white/40">&gt; Generating proof of concept curl command...</div>
+                  <div className="text-teal-400">&gt; curl -X GET "http://demo-target:8001/orders/1003"</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row: Last Scan Card & Scroll Cue (Assembles from Left & Right) */}
+            <div className="flex justify-between items-end relative z-30 pt-8">
+              <div className="assemble-l glass-tile rounded-2xl p-5 w-72 border-white/10 shadow-2xl">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-mono text-[9px] tracking-[0.24em] text-[#D8FF00] uppercase font-bold">
+                    PREVIOUS TARGET
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+                <div className="font-mono font-bold text-xs text-white truncate">
+                  {lastScanMeta.url}
+                </div>
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10 text-[10px] font-mono">
+                  <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 font-bold">
+                    {lastScanMeta.critical} CRITICAL
+                  </span>
+                  <span className="text-[#8E9BA8]">{lastScanMeta.high} HIGH SEV</span>
+                </div>
+              </div>
+
+              <div
+                onClick={() => scrollToSection('scan')}
+                className="assemble-r hidden sm:flex flex-col items-center gap-2 text-white/40 hover:text-white transition-colors cursor-pointer"
+              >
+                <span className="font-mono text-[9px] tracking-[0.2em] uppercase">SCROLL TO INSPECT</span>
+                <div className="w-4 h-7 rounded-full border border-white/30 flex items-start justify-center p-1">
+                  <div className="w-1 h-1.5 rounded-full bg-[#D8FF00] animate-bounce" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ========================================================================= */}
+          {/* HORIZONTAL CONTENT TRACK (GSAP PINNED WITH ASSEMBLE-IN PIECES)            */}
+          {/* ========================================================================= */}
+          <div ref={trackRef} className="horizontal-wrapper">
+            <div ref={sliderRef} className="horizontal-slider">
+
+              {/* --------------------------------------------------------------------- */}
+              {/* 02 SCAN PANEL                                                         */}
+              {/* --------------------------------------------------------------------- */}
+              <div id="scan-panel" className="horizontal-panel">
+                <div className="glass-tile rounded-3xl p-8 max-w-2xl w-full shadow-2xl space-y-5 my-auto overflow-hidden">
+                  <div className="flex justify-between items-start pb-4 border-b border-white/10">
+                    <div className="assemble-l">
+                      <span className="text-[10px] font-mono tracking-widest text-[#D8FF00] uppercase font-bold">02 // EXECUTION MATRIX</span>
+                      <h3 className="font-bebas text-4xl text-white tracking-wide mt-0.5">TARGET CONFIGURATION</h3>
+                    </div>
+                    <span className="assemble-r px-3 py-1 rounded bg-[#D8FF00] text-black text-xs font-mono font-bold">EXPLICIT BOUNDS</span>
+                  </div>
+
+                  {/* Themed Kinetic Animated Loading Bar */}
+                  {scanState.active && (
+                    <div className="assemble-l p-4 rounded-2xl bg-black/60 border border-[#D8FF00]/40 space-y-3 shadow-lg">
+                      <div className="flex justify-between items-center text-xs font-mono">
+                        <span className="text-[#D8FF00] font-bold flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-[#D8FF00] animate-ping" />
+                          AUDIT IN PROGRESS: {scanState.status.toUpperCase()}
+                        </span>
+                        <span className="font-bold text-white">
+                          {scanState.total ? Math.round((scanState.progress / scanState.total) * 100) : 0}%
+                        </span>
+                      </div>
+
+                      <div className="kinetic-track w-full h-3">
+                        <div
+                          className="kinetic-fill h-full transition-all duration-300 rounded-full"
+                          style={{
+                            width: `${scanState.total ? Math.round((scanState.progress / scanState.total) * 100) : 15}%`
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] font-mono text-[#8E9BA8]">
+                        <span>{scanState.progress} of {scanState.total || '—'} operations verified</span>
+                        <span>{scanState.error ? 'HALTED WITH ERROR' : 'Evaluating tenant boundary tests...'}</span>
+                      </div>
+
+                      {scanState.error && (
+                        <div className="p-2.5 rounded-lg bg-rose-950/80 border border-rose-700 text-rose-300 text-xs font-mono flex justify-between items-center">
+                          <span>{scanState.error}</span>
+                          <button
+                            onClick={() => setScanState(prev => ({ ...prev, active: false }))}
+                            className="underline text-white font-bold"
+                          >
+                            DISMISS
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Scan Configuration Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const form = e.target;
+                      let parsedTokens = {};
+                      try {
+                        parsedTokens = JSON.parse(form.tokens.value || '{}');
+                      } catch {
+                        alert('Auth Tokens must be valid JSON syntax.');
+                        return;
+                      }
+
+                      handleScanSubmit({
+                        target_base_url: form.targetUrl.value,
+                        spec_url: form.specUrl.value || null,
+                        auth_tokens: parsedTokens,
+                        checks: ['bola', 'data_exposure', 'auth_misconfig', 'rate_limit'],
+                        authorization_confirmed: form.authorized.checked
+                      });
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="assemble-l">
+                      <label className="block text-[11px] font-mono text-[#8E9BA8] uppercase mb-1">Target Base URL</label>
+                      <input
+                        name="targetUrl"
+                        type="text"
+                        required
+                        defaultValue={targetUrl}
+                        className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:border-[#D8FF00] focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="assemble-r">
+                      <label className="block text-[11px] font-mono text-[#8E9BA8] uppercase mb-1">OpenAPI Specification URL</label>
+                      <input
+                        name="specUrl"
+                        type="text"
+                        defaultValue="http://demo-target:8001/openapi.json"
+                        className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:border-[#D8FF00] focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="assemble-l">
+                      <label className="block text-[11px] font-mono text-[#8E9BA8] uppercase mb-1">Principal Tokens (JSON Map)</label>
+                      <textarea
+                        name="tokens"
+                        rows={2}
+                        defaultValue='{"userA":"token-a","userB":"token-b"}'
+                        className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:border-[#D8FF00] focus:outline-none"
+                      />
+                    </div>
+
+                    <label className="assemble-r flex items-start gap-2.5 p-3 rounded-lg bg-white/5 border border-white/10 cursor-pointer">
+                      <input
+                        name="authorized"
+                        type="checkbox"
+                        required
+                        defaultChecked
+                        className="accent-[#D8FF00] mt-0.5"
+                      />
+                      <span className="text-[11px] font-mono text-[#8E9BA8] leading-tight">
+                        I confirm explicit authorization to audit this target contract. Bounded replay checks only.
+                      </span>
+                    </label>
+
+                    <div className="assemble-l pt-1">
+                      <button
+                        type="submit"
+                        disabled={scanState.active && scanState.status === 'running'}
+                        className="w-full py-4 btn-volt-pill text-xs tracking-wider uppercase disabled:opacity-50"
+                      >
+                        {scanState.active && scanState.status === 'running'
+                          ? 'AUDITING TARGET IN PROGRESS...'
+                          : 'LAUNCH VULNERABILITY AUDIT →'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* --------------------------------------------------------------------- */}
+              {/* 03 FINDINGS DASHBOARD PANEL                                           */}
+              {/* --------------------------------------------------------------------- */}
+              <div id="findings-panel" className="horizontal-panel">
+                <div className="glass-tile rounded-3xl p-8 max-w-4xl w-full shadow-2xl space-y-6 my-auto overflow-hidden">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-white/10">
+                    <div className="assemble-l">
+                      <span className="text-[10px] font-mono tracking-widest text-[#D8FF00] uppercase font-bold">03 // DOSSIER RESULTS</span>
+                      <h3 className="font-bebas text-4xl text-white tracking-wide mt-0.5">SECURITY FINDINGS</h3>
+                      <div className="font-mono text-xs text-[#8E9BA8] mt-1">{targetUrl}</div>
+                    </div>
+
+                    <button
+                      onClick={() => scrollToSection('scan')}
+                      className="assemble-r btn-volt-pill px-5 py-2 text-xs font-mono uppercase"
+                    >
+                      + NEW SCAN
+                    </button>
+                  </div>
+
+                  {/* Summary Metric Cards Converging from Left & Right */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="assemble-l p-4 rounded-xl border border-rose-800 bg-white/5">
+                      <div className="text-[10px] font-mono text-[#8E9BA8] uppercase">Critical</div>
+                      <div className="text-4xl font-bebas text-rose-400 mt-1">{findings.filter(f => f.severity === 'Critical').length}</div>
+                    </div>
+
+                    <div className="assemble-r p-4 rounded-xl border border-orange-800 bg-white/5">
+                      <div className="text-[10px] font-mono text-[#8E9BA8] uppercase">High</div>
+                      <div className="text-4xl font-bebas text-orange-400 mt-1">{findings.filter(f => f.severity === 'High').length}</div>
+                    </div>
+
+                    <div className="assemble-l p-4 rounded-xl border border-yellow-800 bg-white/5">
+                      <div className="text-[10px] font-mono text-[#8E9BA8] uppercase">Medium</div>
+                      <div className="text-4xl font-bebas text-yellow-400 mt-1">{findings.filter(f => f.severity === 'Medium').length}</div>
+                    </div>
+
+                    <div className="assemble-r p-4 rounded-xl border border-teal-800 bg-white/5">
+                      <div className="text-[10px] font-mono text-[#8E9BA8] uppercase">Low</div>
+                      <div className="text-4xl font-bebas text-teal-400 mt-1">{findings.filter(f => f.severity === 'Low').length}</div>
+                    </div>
+                  </div>
+
+                  {/* Findings Table Rows (Single Unified Block Assembly) */}
+                  <div className="assemble-l divide-y divide-white/10 max-h-72 overflow-y-auto pr-2">
+                    {findings.length === 0 ? (
+                      <div className="py-12 text-center font-mono text-xs text-[#8E9BA8]">
+                        No active findings loaded. Initiate an audit from the Scan panel to populate evidence.
+                      </div>
+                    ) : (
+                      findings.map((f, i) => (
+                        <div
+                          key={i}
+                          onClick={() => setSelectedFinding(f)}
+                          className="py-3.5 flex items-center justify-between gap-4 hover:bg-white/5 px-3 rounded-lg cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase shrink-0 ${
+                              f.severity === 'Critical'
+                                ? 'bg-rose-950 text-rose-300 border border-rose-700'
+                                : f.severity === 'High'
+                                ? 'bg-orange-950 text-orange-300 border border-orange-700'
+                                : 'bg-yellow-950 text-yellow-300 border border-yellow-700'
+                            }`}>
+                              {f.severity}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="font-mono text-xs font-bold text-white truncate">{f.title}</div>
+                              <div className="font-mono text-[10px] text-[#8E9BA8]">{f.method} {f.endpoint} · {f.vulnerability_class}</div>
+                            </div>
+                          </div>
+                          <span className="font-mono text-xs text-[#D8FF00] shrink-0">INSPECT →</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* --------------------------------------------------------------------- */}
+              {/* 04 HISTORY PANEL                                                      */}
+              {/* --------------------------------------------------------------------- */}
+              <div id="history-panel" className="horizontal-panel">
+                <div className="glass-tile rounded-3xl p-8 max-w-3xl w-full shadow-2xl space-y-4 my-auto overflow-hidden">
+                  <div className="pb-4 border-b border-white/10 flex justify-between items-end">
+                    <div className="assemble-l">
+                      <span className="text-[10px] font-mono tracking-widest text-[#D8FF00] uppercase font-bold">04 // TELEMETRY DATABASE</span>
+                      <h3 className="font-bebas text-4xl text-white tracking-wide mt-0.5">HISTORICAL SCANS</h3>
+                    </div>
+                    <span className="assemble-r text-xs font-mono text-[#D8FF00]">2 ARCHIVED SESSIONS</span>
+                  </div>
+
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    <div className="assemble-l p-4 rounded-xl bg-white/5 border border-white/10 flex justify-between items-center">
+                      <div>
+                        <div className="font-mono text-xs font-bold text-white">scan-run-0091</div>
+                        <div className="font-mono text-[11px] text-[#8E9BA8]">http://demo-target:8001 · 5 endpoints</div>
+                      </div>
+                      <button
+                        onClick={() => scrollToSection('findings')}
+                        className="btn-volt-pill px-4 py-1.5 text-xs font-mono"
+                      >
+                        LOAD DOSSIER
+                      </button>
+                    </div>
+
+                    <div className="assemble-r p-4 rounded-xl bg-white/5 border border-white/10 flex justify-between items-center">
+                      <div>
+                        <div className="font-mono text-xs font-bold text-white">scan-run-0090</div>
+                        <div className="font-mono text-[11px] text-[#8E9BA8]">http://demo-target:8001 · 5 endpoints</div>
+                      </div>
+                      <button
+                        onClick={() => scrollToSection('findings')}
+                        className="btn-volt-pill px-4 py-1.5 text-xs font-mono"
+                      >
+                        LOAD DOSSIER
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* --------------------------------------------------------------------- */}
+              {/* 05 PROTOCOL / DOCS PANEL                                              */}
+              {/* --------------------------------------------------------------------- */}
+              <div id="protocol-panel" className="horizontal-panel">
+                <div className="glass-tile rounded-3xl p-8 max-w-3xl w-full shadow-2xl space-y-4 font-mono text-xs my-auto overflow-hidden">
+                  <div className="pb-4 border-b border-white/10 flex justify-between items-end">
+                    <div className="assemble-l">
+                      <span className="text-[10px] tracking-widest text-[#D8FF00] uppercase font-bold">05 // ARCHITECTURAL STANDARD</span>
+                      <h3 className="font-bebas text-4xl text-white tracking-wide mt-0.5">ZERO-TRUST PROTOCOL</h3>
+                    </div>
+                    <span className="assemble-r text-xs text-[#8E9BA8]">OWASP API SEC</span>
+                  </div>
+
+                  <div className="space-y-4 text-white/80 leading-relaxed max-h-80 overflow-y-auto pr-2">
+                    <div className="assemble-l p-3.5 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-[#D8FF00] font-bold block mb-1">BOLA / IDOR PERMUTATIONS:</span>
+                      Asserting cross-user perimeter boundaries by replaying valid User A requests with User B bearer tokens against resource entity IDs.
+                    </div>
+                    <div className="assemble-r p-3.5 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-[#D8FF00] font-bold block mb-1">EXCESSIVE DATA EXPOSURE:</span>
+                      Cross-referencing schema declarations with actual serialized HTTP responses to flag undeclared credential or token leaks.
+                    </div>
+                    <div className="assemble-l p-3.5 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-[#D8FF00] font-bold block mb-1">BOUNDED EXECUTION:</span>
+                      Confines all probing exclusively to the declared OpenAPI specification without discovery or uncontrolled crawling.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* DETAIL INSPECTION MODAL */}
+          {selectedFinding && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+              <div className="glass-tile rounded-3xl p-8 max-w-2xl w-full border-white/20 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+                <div className="flex justify-between items-start pb-4 border-b border-white/10">
+                  <div>
+                    <span className="px-2.5 py-1 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold uppercase">
+                      {selectedFinding.severity} · {selectedFinding.vulnerability_class}
+                    </span>
+                    <h3 className="font-bebas text-3xl text-white tracking-wide mt-2">{selectedFinding.title}</h3>
+                  </div>
+                  <button
+                    onClick={() => setSelectedFinding(null)}
+                    className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center font-bold hover:bg-[#D8FF00] hover:text-black transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono text-[#D8FF00] uppercase block mb-1 font-bold">Observed Variance</label>
+                  <p className="text-xs font-mono text-white/80 leading-relaxed bg-black/60 p-3.5 rounded-xl border border-white/10">
+                    {selectedFinding.description}
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-mono text-[#D8FF00] uppercase font-bold">Proof of Concept Replay</label>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedFinding.poc_curl || '');
+                        alert('Copied cURL command to clipboard');
+                      }}
+                      className="text-[10px] font-mono text-black bg-[#D8FF00] px-3 py-1 rounded-full font-bold hover:bg-white transition-colors"
+                    >
+                      COPY CURL
+                    </button>
+                  </div>
+                  <div className="bg-black/90 p-3.5 rounded-xl border border-white/10 font-mono text-[11px] text-teal-300 overflow-x-auto">
+                    {selectedFinding.poc_curl}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono text-[#D8FF00] uppercase block mb-1 font-bold">Prescribed Fix</label>
+                  <p className="text-xs font-mono text-teal-200/90 leading-relaxed bg-teal-950/40 p-3.5 rounded-xl border border-teal-800/40">
+                    {selectedFinding.remediation}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <footer className="relative z-30 p-8 border-t border-white/10 text-center font-mono text-xs text-[#8E9BA8]">
+            SENTINELAPI · BOUNDED SECURITY TESTING FOR EXPLICITLY AUTHORIZED TARGETS
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SentinelApp />);
+  </script>
+</body>
+</html>

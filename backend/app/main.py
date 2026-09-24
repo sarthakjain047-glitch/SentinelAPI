@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 DB = os.getenv("DATABASE_PATH", "./sentinelapi.db")
 Path(DB).parent.mkdir(parents=True, exist_ok=True)
-0app = FastAPI(title="SentinelAPI", version="1.0.0")
+app = FastAPI(title="SentinelAPI", version="1.0.0")
 
 
 def db():
